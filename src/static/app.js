@@ -20,17 +20,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Build participants list HTML
+        // Build participants list HTML with delete icon
         let participantsHTML = `
           <div class="activity-card-participants">
             <div class="activity-card-participants-title">Participants</div>
-            <ul class="activity-card-participants-list">
+            <ul class="activity-card-participants-list no-bullets">
               ${
                 details.participants.length > 0
                   ? details.participants
                       .map(
-                        (p) =>
-                          `<li>${p.name ? p.name : p.email ? p.email : p}</li>`
+                        (p) => {
+                          const display = p.name ? p.name : p.email ? p.email : p;
+                          const email = p.email ? p.email : (p.name ? '' : p); // fallback for string email
+                          return `<li style="display:flex;align-items:center;gap:6px;">
+                            <span>${display}</span>
+                            <span class="delete-participant" data-activity="${encodeURIComponent(name)}" data-email="${encodeURIComponent(email)}" title="Remove participant" style="cursor:pointer;color:#c62828;font-size:18px;">&#128465;</span>
+                          </li>`;
+                        }
                       )
                       .join("")
                   : '<li style="color:#888;">No participants yet</li>'
@@ -47,13 +53,36 @@ document.addEventListener("DOMContentLoaded", () => {
           ${participantsHTML}
         `;
 
-        activitiesList.appendChild(activityCard);
+    activitiesList.appendChild(activityCard);
 
-        // Add option to select dropdown
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        activitySelect.appendChild(option);
+    // Add option to select dropdown
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    activitySelect.appendChild(option);
+      // Add delete event listeners after rendering
+      setTimeout(() => {
+        document.querySelectorAll('.delete-participant').forEach((icon) => {
+          icon.addEventListener('click', async (e) => {
+            const activity = icon.getAttribute('data-activity');
+            const email = icon.getAttribute('data-email');
+            if (!activity || !email) return;
+            if (!confirm('Are you sure you want to remove this participant?')) return;
+            try {
+              const response = await fetch(`/activities/${activity}/unregister?email=${email}`, {
+                method: 'DELETE',
+              });
+              if (response.ok) {
+                fetchActivities();
+              } else {
+                alert('Failed to remove participant.');
+              }
+            } catch (err) {
+              alert('Error removing participant.');
+            }
+          });
+        });
+      }, 0);
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -82,6 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        fetchActivities(); // Refresh activities after successful signup
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
